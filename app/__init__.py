@@ -1,0 +1,1 @@
+"""Smart subscription registry backend."""

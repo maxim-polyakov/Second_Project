@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Умный реестр подписок</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">AI-платформа управления регулярными платежами</p>
+          <h1>Умный реестр подписок</h1>
+          <p class="subtitle">
+            Задайте вопрос на естественном языке. Агент найдет подписки,
+            пересчитает валюты и покажет ход рассуждений.
+          </p>
+        </div>
+        <div class="status-card">
+          <span class="status-dot"></span>
+          <div>
+            <strong>Backend online</strong>
+            <span>FastAPI + LangChain + DeepSeek</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <article class="panel question-panel">
+          <h2>Спросить агента</h2>
+          <p class="muted">
+            Попробуйте один из проверочных сценариев или задайте свой вопрос.
+          </p>
+
+          <div class="suggestions" aria-label="Примеры вопросов">
+            <button type="button" data-question="Сколько я потрачу в ближайшие 30 дней? Покажи итог в рублях.">
+              30 дней в рублях
+            </button>
+            <button type="button" data-question="Какая категория обходится мне дороже всего?">
+              Самая дорогая категория
+            </button>
+            <button type="button" data-question="Есть ли у меня платежи на этой неделе?">
+              Платежи на неделе
+            </button>
+          </div>
+
+          <form id="ask-form">
+            <label for="question">Вопрос</label>
+            <textarea
+              id="question"
+              name="question"
+              rows="5"
+              minlength="3"
+              required
+              placeholder="Например: Сколько я потрачу в ближайшие 30 дней?"
+            ></textarea>
+            <button class="primary-button" type="submit">
+              <span class="button-text">Запустить агента</span>
+              <span class="loader" aria-hidden="true"></span>
+            </button>
+          </form>
+        </article>
+
+        <article class="panel result-panel">
+          <div class="result-header">
+            <div>
+              <h2>Ответ</h2>
+              <p class="muted">Результат и прозрачный ReAct-трейс.</p>
+            </div>
+            <a href="/docs" target="_blank" rel="noreferrer">API docs</a>
+          </div>
+
+          <div id="empty-state" class="empty-state">
+            Задайте вопрос, чтобы увидеть расчет агента.
+          </div>
+
+          <div id="error" class="error hidden"></div>
+
+          <div id="answer-card" class="answer-card hidden">
+            <h3>Итог</h3>
+            <p id="answer"></p>
+          </div>
+
+          <details id="trace-card" class="trace-card hidden" open>
+            <summary>ReAct-трейс</summary>
+            <div id="trace" class="trace-list"></div>
+          </details>
+        </article>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,160 @@
+# Умный реестр подписок
+
+Backend-ядро и AI-интеграция для учета личных подписок и регулярных платежей. Пользователь задает вопрос на естественном языке, а LangChain ReAct-агент вызывает инструменты, считает даты списаний, конвертирует валюты через frankfurter.app и возвращает ответ с трассировкой рассуждений.
+
+## Стек
+
+- Python 3.12
+- FastAPI
+- Статический frontend на HTML/CSS/JavaScript
+- LangChain ReAct Agent
+- DeepSeek `deepseek-chat` через OpenAI-compatible API и `langchain-openai`
+- frankfurter.app для курсов валют
+- pytest
+- Docker / Docker Compose
+
+## Как запустить
+
+Создайте `.env` на основе примера:
+
+```bash
+cp .env.example .env
+```
+
+Заполните ключ LLM в `.env` в корне проекта. Не храните реальный ключ в `.env.example`, этот файл нужен только как шаблон.
+
+```env
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+TARGET_CURRENCY=RUB
+OBLIGATIONS_PATH=data/obligations.json
+DEMO_MODE=false
+```
+
+Если DeepSeek возвращает `402 Insufficient Balance`, пополните баланс аккаунта или временно включите демонстрационный режим:
+
+```env
+DEMO_MODE=true
+```
+
+В демонстрационном режиме сайт отвечает на три проверочных сценария по локальной фикстуре без вызова LLM. Для полноценной проверки ReAct-агента через DeepSeek верните `DEMO_MODE=false`.
+
+Запустите приложение:
+
+```bash
+docker compose up --build
+```
+
+Сайт будет доступен на `http://localhost:8000`.
+
+Также доступны:
+
+- Swagger UI: `http://localhost:8000/docs`
+- Healthcheck: `http://localhost:8000/health`
+- API агента: `POST http://localhost:8000/ask`
+
+Пример запроса:
+
+```bash
+curl -X POST "http://localhost:8000/ask" \
+  -H "Content-Type: application/json" \
+  -d "{\"question\":\"Сколько я потрачу в ближайшие 30 дней? Покажи итог в рублях.\"}"
+```
+
+Для PowerShell:
+
+```powershell
+Invoke-RestMethod -Method Post "http://localhost:8000/ask" `
+  -ContentType "application/json" `
+  -Body '{"question":"Есть ли у меня платежи на этой неделе?"}'
+```
+
+## Почему выбран этот LLM
+
+По умолчанию используется `deepseek-chat`: он хорошо подходит для задач рассуждения, поддерживает OpenAI-compatible API, стабильно подключается через `langchain-openai` и обычно дешевле многих GPT-моделей. Для тестового задания это хороший баланс качества, стоимости и простоты интеграции.
+
+Модель можно заменить через переменную `DEEPSEEK_MODEL`, не меняя код агента.
+
+## Данные
+
+Фикстура лежит в `data/obligations.json` и содержит 15 обязательств в разных валютах, категориях и статусах. Основной инструмент `get_obligations(status=None, category=None)` читает этот JSON и применяет фильтры.
+
+Второй инструмент `convert_currency(amount, from_currency, to_currency)` обращается к:
+
+```text
+https://api.frankfurter.app/latest
+```
+
+Если API недоступен или не возвращает нужную валютную пару, агент не придумывает курс, а сообщает, что ответить точно невозможно.
+
+## Пример ReAct-трейса
+
+Запрос:
+
+```text
+Есть ли у меня платежи на этой неделе?
+```
+
+Пример вывода в консоли:
+
+```text
+Question: Есть ли у меня платежи на этой неделе?
+Thought: Нужно получить активные обязательства и сравнить next_payment_date с текущей датой 2026-07-03.
+Action: get_obligations
+Action Input: {"status":"active"}
+Observation: [
+  {"title":"Yandex Plus","amount":399.0,"currency":"RUB","next_payment_date":"2026-07-04","status":"active"},
+  {"title":"GitHub Pro","amount":4.0,"currency":"USD","next_payment_date":"2026-07-05","status":"active"},
+  {"title":"Spotify","amount":10.99,"currency":"EUR","next_payment_date":"2026-07-06","status":"active"},
+  {"title":"Mobile plan","amount":790.0,"currency":"RUB","next_payment_date":"2026-07-08","status":"active"}
+]
+Thought: На этой неделе есть четыре активных платежа.
+Final Answer: Да. На этой неделе ожидаются платежи: Yandex Plus 4 июля, GitHub Pro 5 июля, Spotify 6 июля и Mobile plan 8 июля.
+```
+
+Этот же трейс возвращается в поле `trace` ответа `/ask`, а полный лог виден в stdout контейнера.
+
+## Тесты
+
+Локальный запуск:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest
+```
+
+На Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pytest
+```
+
+Покрыты unit-тестами:
+
+- загрузка обязательств из JSON;
+- фильтрация по `status` и `category`;
+- конвертация без API при одинаковых валютах;
+- успешный ответ frankfurter.app через mock;
+- понятная ошибка при недоступности API.
+
+## Ограничения
+
+- Данные хранятся в локальном JSON для одного пользователя, без БД и авторизации.
+- Агент считает только по `next_payment_date`; автоматического построения будущих дат из правил повторения пока нет.
+- Курсы валют берутся в момент запроса и не кэшируются.
+- Если frankfurter.app не поддерживает нужную валюту или временно недоступен, точный расчет невозможен.
+- ReAct-трассировка полезна для отладки, но в production ее стоит дополнительно редактировать перед показом конечному пользователю.
+
+## Мотивация участия в проекте
+
+Меня привлекает сочетание прикладной финансовой задачи и LLM-агента, который не просто генерирует текст, а вызывает инструменты, проверяет данные и дает воспроизводимый ответ. Такой проект близок к реальным сценариям, где ценность создается не моделью самой по себе, а надежной связкой данных, бизнес-логики и понятного пользовательского интерфейса.
+
+Свою роль в команде вижу на стыке ML-инженерии и backend-разработки: проектировать инструменты для агента, улучшать промпты и трассировку, добавлять тесты, контролировать качество ответов и снижать риск галлюцинаций.
+
+Готов уделять 15-20 часов в неделю в течение ближайших 3-6 месяцев, с возможностью увеличить нагрузку при активной фазе разработки или релиза.

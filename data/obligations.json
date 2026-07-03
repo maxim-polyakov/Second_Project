@@ -1,0 +1,137 @@
+[
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b001",
+    "title": "Netflix",
+    "amount": 15.49,
+    "currency": "USD",
+    "category": "entertainment",
+    "next_payment_date": "2026-07-10",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b002",
+    "title": "Spotify",
+    "amount": 10.99,
+    "currency": "EUR",
+    "category": "entertainment",
+    "next_payment_date": "2026-07-06",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b003",
+    "title": "Yandex Plus",
+    "amount": 399.0,
+    "currency": "RUB",
+    "category": "entertainment",
+    "next_payment_date": "2026-07-04",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b004",
+    "title": "GitHub Pro",
+    "amount": 4.0,
+    "currency": "USD",
+    "category": "tools",
+    "next_payment_date": "2026-07-05",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b005",
+    "title": "AWS",
+    "amount": 42.75,
+    "currency": "USD",
+    "category": "cloud",
+    "next_payment_date": "2026-07-15",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b006",
+    "title": "Notion",
+    "amount": 8.0,
+    "currency": "USD",
+    "category": "productivity",
+    "next_payment_date": "2026-07-20",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b007",
+    "title": "Coursera",
+    "amount": 39.0,
+    "currency": "EUR",
+    "category": "education",
+    "next_payment_date": "2026-07-30",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b008",
+    "title": "Gym",
+    "amount": 2500.0,
+    "currency": "RUB",
+    "category": "health",
+    "next_payment_date": "2026-07-25",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b009",
+    "title": "Mobile plan",
+    "amount": 790.0,
+    "currency": "RUB",
+    "category": "utilities",
+    "next_payment_date": "2026-07-08",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b010",
+    "title": "Adobe Creative Cloud",
+    "amount": 19.99,
+    "currency": "USD",
+    "category": "design",
+    "next_payment_date": "2026-08-01",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b011",
+    "title": "Dropbox",
+    "amount": 11.99,
+    "currency": "USD",
+    "category": "productivity",
+    "next_payment_date": "2026-08-12",
+    "status": "paused"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b012",
+    "title": "Language school",
+    "amount": 3200.0,
+    "currency": "RUB",
+    "category": "education",
+    "next_payment_date": "2026-07-11",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b013",
+    "title": "Medium",
+    "amount": 5.0,
+    "currency": "USD",
+    "category": "education",
+    "next_payment_date": "2026-07-18",
+    "status": "active"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b014",
+    "title": "Old VPN",
+    "amount": 9.99,
+    "currency": "EUR",
+    "category": "security",
+    "next_payment_date": "2026-07-07",
+    "status": "cancelled"
+  },
+  {
+    "id": "b6ccf3e4-4e4a-4c5a-90f5-5f5b0d63b015",
+    "title": "ChatGPT",
+    "amount": 20.0,
+    "currency": "USD",
+    "category": "ai-tools",
+    "next_payment_date": "2026-07-22",
+    "status": "active"
+  }
+]
