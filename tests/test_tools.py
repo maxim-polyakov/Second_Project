@@ -75,7 +75,7 @@ def test_convert_currency_uses_frankfurter_response(monkeypatch):
         def json(self):
             return {"rates": {"RUB": 894.5}}
 
-    def fake_get(url, params, timeout):
+    def fake_get(url, params=None, timeout=10.0):
         assert url == tools.FRANKFURTER_URL
         assert params == {"amount": 10.0, "from": "USD", "to": "RUB"}
         assert timeout == 10.0
@@ -87,7 +87,7 @@ def test_convert_currency_uses_frankfurter_response(monkeypatch):
 
 
 def test_convert_currency_raises_clear_error_on_api_failure(monkeypatch):
-    def fake_get(url, params, timeout):
+    def fake_get(url, params=None, timeout=10.0):
         raise httpx.ConnectError("network is down")
 
     monkeypatch.setattr(tools.httpx, "get", fake_get)
@@ -97,13 +97,30 @@ def test_convert_currency_raises_clear_error_on_api_failure(monkeypatch):
 
 
 def test_convert_currency_uses_rub_fallback_when_api_does_not_support_pair(monkeypatch):
-    def fake_get(url, params, timeout):
-        raise httpx.HTTPStatusError(
-            "not found",
-            request=httpx.Request("GET", url),
-            response=httpx.Response(404),
-        )
+    calls = []
+
+    def fake_get(url, params=None, timeout=10.0):
+        calls.append(url)
+        if url == tools.FRANKFURTER_URL:
+            raise httpx.HTTPStatusError(
+                "not found",
+                request=httpx.Request("GET", url),
+                response=httpx.Response(404),
+            )
+
+        class FakeFallbackResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"rates": {"RUB": 91.5}}
+
+        return FakeFallbackResponse()
 
     monkeypatch.setattr(tools.httpx, "get", fake_get)
 
-    assert convert_currency(2, "USD", "RUB") == 180.0
+    assert convert_currency(2, "USD", "RUB") == 183.0
+    assert calls == [
+        tools.FRANKFURTER_URL,
+        tools.SECONDARY_RATES_URL.format(base_currency="USD"),
+    ]

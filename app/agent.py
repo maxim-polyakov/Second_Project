@@ -12,7 +12,9 @@ from langchain_core.tools import tool
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
-from app.demo_agent import ask_demo_agent
+from app.analytics import calculate_spending_next_days
+from app.analytics import find_most_expensive_category
+from app.analytics import list_payments_next_days
 from app.settings import get_current_date
 from app.tools import CurrencyConversionError
 from app.tools import convert_currency as convert_currency_core
@@ -47,7 +49,42 @@ def convert_currency_tool(tool_input: str = "") -> str:
     return str(converted)
 
 
-TOOLS = [get_obligations_tool, convert_currency_tool]
+@tool("calculate_spending_next_days")
+def calculate_spending_next_days_tool(tool_input: str = "") -> str:
+    """Deterministically calculate active spending for next N days. Input JSON: {"days": 30, "target_currency": "RUB"}."""
+    payload = _parse_tool_input(tool_input)
+    result = calculate_spending_next_days(
+        days=int(payload.get("days", 30)),
+        target_currency=str(payload.get("target_currency", "RUB")),
+    )
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@tool("find_most_expensive_category")
+def find_most_expensive_category_tool(tool_input: str = "") -> str:
+    """Deterministically find the most expensive active category. Input JSON: {"target_currency": "RUB"}."""
+    payload = _parse_tool_input(tool_input)
+    result = find_most_expensive_category(
+        target_currency=str(payload.get("target_currency", "RUB")),
+    )
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@tool("list_payments_next_days")
+def list_payments_next_days_tool(tool_input: str = "") -> str:
+    """Deterministically list active payments for next N days. Input JSON: {"days": 7}."""
+    payload = _parse_tool_input(tool_input)
+    result = list_payments_next_days(days=int(payload.get("days", 7)))
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+TOOLS = [
+    get_obligations_tool,
+    convert_currency_tool,
+    calculate_spending_next_days_tool,
+    find_most_expensive_category_tool,
+    list_payments_next_days_tool,
+]
 
 
 def _parse_tool_input(tool_input: str | dict[str, Any] | None) -> dict[str, Any]:
@@ -75,6 +112,10 @@ Default target currency: RUB
 
 Rules:
 - Use only the data returned by tools.
+- For the three common scenarios, prefer deterministic business tools:
+  calculate_spending_next_days, find_most_expensive_category, list_payments_next_days.
+- Use get_obligations and convert_currency directly for custom analysis that is not covered
+  by the deterministic business tools.
 - For date ranges, compare next_payment_date with the current date.
 - Interpret "this week" / "на этой неделе" as the next 7 days including current date,
   unless the user explicitly asks for a calendar week.
@@ -180,9 +221,6 @@ def build_agent_executor(callbacks: list[BaseCallbackHandler] | None = None) -> 
 
 
 def ask_agent(question: str) -> dict[str, Any]:
-    if os.getenv("DEMO_MODE", "false").lower() == "true":
-        return ask_demo_agent(question)
-
     trace_handler = TraceCallbackHandler()
     executor = build_agent_executor(callbacks=[trace_handler])
     result = executor.invoke(

@@ -10,10 +10,7 @@ import httpx
 
 DEFAULT_OBLIGATIONS_PATH = Path("data/obligations.json")
 FRANKFURTER_URL = "https://api.frankfurter.dev/v1/latest"
-FALLBACK_RATES_TO_RUB = {
-    "USD": 90.0,
-    "EUR": 98.0,
-}
+SECONDARY_RATES_URL = "https://open.er-api.com/v6/latest/{base_currency}"
 
 
 class CurrencyConversionError(RuntimeError):
@@ -82,7 +79,7 @@ def convert_currency(
         response.raise_for_status()
         payload = response.json()
     except httpx.HTTPError as exc:
-        fallback = _fallback_convert(amount, normalized_from, normalized_to)
+        fallback = _secondary_api_convert(amount, normalized_from, normalized_to, timeout)
         if fallback is not None:
             return fallback
 
@@ -92,6 +89,10 @@ def convert_currency(
 
     converted = payload.get("rates", {}).get(normalized_to)
     if converted is None:
+        fallback = _secondary_api_convert(amount, normalized_from, normalized_to, timeout)
+        if fallback is not None:
+            return fallback
+
         raise CurrencyConversionError(
             f"Exchange rate {normalized_from}->{normalized_to} is absent in API response."
         )
@@ -99,12 +100,25 @@ def convert_currency(
     return round(float(converted), 2)
 
 
-def _fallback_convert(amount: float, from_currency: str, to_currency: str) -> float | None:
-    """Use explicit fallback rates only for RUB, which frankfurter may not provide."""
-    if to_currency == "RUB" and from_currency in FALLBACK_RATES_TO_RUB:
-        return round(float(amount) * FALLBACK_RATES_TO_RUB[from_currency], 2)
+def _secondary_api_convert(
+    amount: float,
+    from_currency: str,
+    to_currency: str,
+    timeout: float,
+) -> float | None:
+    """Fallback to a second public API when frankfurter lacks a currency pair."""
+    try:
+        response = httpx.get(
+            SECONDARY_RATES_URL.format(base_currency=from_currency),
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except httpx.HTTPError:
+        return None
 
-    if from_currency == "RUB" and to_currency in FALLBACK_RATES_TO_RUB:
-        return round(float(amount) / FALLBACK_RATES_TO_RUB[to_currency], 2)
+    rate = payload.get("rates", {}).get(to_currency)
+    if rate is None:
+        return None
 
-    return None
+    return round(float(amount) * float(rate), 2)
