@@ -93,4 +93,17 @@ def test_convert_currency_raises_clear_error_on_api_failure(monkeypatch):
     monkeypatch.setattr(tools.httpx, "get", fake_get)
 
     with pytest.raises(CurrencyConversionError, match="Could not fetch exchange rate"):
-        convert_currency(10, "USD", "RUB")
+        convert_currency(10, "GBP", "CHF")
+
+
+def test_convert_currency_uses_rub_fallback_when_api_does_not_support_pair(monkeypatch):
+    def fake_get(url, params, timeout):
+        raise httpx.HTTPStatusError(
+            "not found",
+            request=httpx.Request("GET", url),
+            response=httpx.Response(404),
+        )
+
+    monkeypatch.setattr(tools.httpx, "get", fake_get)
+
+    assert convert_currency(2, "USD", "RUB") == 180.0

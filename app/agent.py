@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date
 from typing import Any
 
 from langchain_classic.agents import AgentExecutor, create_react_agent
+from langchain_core.agents import AgentFinish
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from langchain_openai import ChatOpenAI
 
 from app.demo_agent import ask_demo_agent
+from app.settings import get_current_date
 from app.tools import CurrencyConversionError
 from app.tools import convert_currency as convert_currency_core
 from app.tools import get_obligations as get_obligations_core
@@ -21,41 +21,48 @@ from app.tools import get_obligations as get_obligations_core
 load_dotenv()
 
 
-class GetObligationsInput(BaseModel):
-    status: str | None = Field(
-        default=None,
-        description="Optional obligation status filter, for example active, paused, cancelled.",
+@tool("get_obligations")
+def get_obligations_tool(tool_input: str = "") -> str:
+    """Return user obligations from JSON. Input JSON: {"status": "...", "category": "..."}."""
+    payload = _parse_tool_input(tool_input)
+    obligations = get_obligations_core(
+        status=payload.get("status"),
+        category=payload.get("category"),
     )
-    category: str | None = Field(
-        default=None,
-        description="Optional category filter, for example entertainment, education, cloud.",
-    )
-
-
-class ConvertCurrencyInput(BaseModel):
-    amount: float = Field(description="Amount of money to convert.")
-    from_currency: str = Field(description="Source ISO currency code, for example USD.")
-    to_currency: str = Field(description="Target ISO currency code, for example RUB.")
-
-
-@tool("get_obligations", args_schema=GetObligationsInput)
-def get_obligations_tool(status: str | None = None, category: str | None = None) -> str:
-    """Return user obligations from the local JSON fixture, filtered by status/category."""
-    obligations = get_obligations_core(status=status, category=category)
     return json.dumps(obligations, ensure_ascii=False, indent=2)
 
 
-@tool("convert_currency", args_schema=ConvertCurrencyInput)
-def convert_currency_tool(amount: float, from_currency: str, to_currency: str) -> str:
-    """Convert a monetary amount with the public frankfurter.app API."""
+@tool("convert_currency")
+def convert_currency_tool(tool_input: str = "") -> str:
+    """Convert money. Input JSON: {"amount": 10.0, "from_currency": "USD", "to_currency": "RUB"}."""
+    payload = _parse_tool_input(tool_input)
     try:
-        converted = convert_currency_core(amount, from_currency, to_currency)
-    except CurrencyConversionError as exc:
+        converted = convert_currency_core(
+            float(payload["amount"]),
+            str(payload["from_currency"]),
+            str(payload["to_currency"]),
+        )
+    except (CurrencyConversionError, KeyError, TypeError, ValueError) as exc:
         return f"ERROR: {exc}. Report that the conversion is unavailable; do not invent a rate."
     return str(converted)
 
 
 TOOLS = [get_obligations_tool, convert_currency_tool]
+
+
+def _parse_tool_input(tool_input: str | dict[str, Any] | None) -> dict[str, Any]:
+    if tool_input is None or tool_input == "":
+        return {}
+
+    if isinstance(tool_input, dict):
+        return tool_input
+
+    try:
+        parsed = json.loads(tool_input)
+    except json.JSONDecodeError:
+        return {}
+
+    return parsed if isinstance(parsed, dict) else {}
 
 
 REACT_PROMPT = PromptTemplate.from_template(
@@ -69,10 +76,21 @@ Default target currency: RUB
 Rules:
 - Use only the data returned by tools.
 - For date ranges, compare next_payment_date with the current date.
+- Interpret "this week" / "на этой неделе" as the next 7 days including current date,
+  unless the user explicitly asks for a calendar week.
 - For totals across currencies, convert every non-target currency item before summing.
+- Never estimate exchange rates yourself and never write "conditional" or "assumed" rates.
+- For category comparisons, aggregate obligations by category and currency first, then call
+  convert_currency for every non-RUB category/currency subtotal before comparing categories.
+- A category comparison final answer is invalid unless you have received an Observation from
+  convert_currency for each non-RUB category/currency subtotal.
+- Do not infer EUR/RUB from USD/RUB or any previous conversion. Every currency subtotal needs
+  its own convert_currency Action.
 - Usually ignore obligations that are not active unless the user asks otherwise.
 - If a tool returns an error or there is not enough data, say that explicitly.
 - Keep the final answer concise, but include the basis for the calculation.
+- When you have enough information, do not call more tools.
+- The final response must always start with exactly "Final Answer:".
 
 You have access to the following tools:
 
@@ -125,6 +143,10 @@ class TraceCallbackHandler(BaseCallbackHandler):
         self.events.append({"type": "observation", "content": f"ERROR: {error}"})
         print(f"Observation: ERROR: {error}", flush=True)
 
+    def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
+        output = finish.return_values.get("output", "")
+        self.events.append({"type": "final", "content": output})
+
 
 def build_agent_executor(callbacks: list[BaseCallbackHandler] | None = None) -> AgentExecutor:
     model_name = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
@@ -149,10 +171,10 @@ def build_agent_executor(callbacks: list[BaseCallbackHandler] | None = None) -> 
         callbacks=callbacks,
         verbose=True,
         handle_parsing_errors=(
-            "Could not parse the previous step. Continue using the required "
-            "Thought/Action/Action Input/Observation format."
+            "Could not parse the previous step. If you already know the answer, "
+            "respond with exactly: Thought: I now know the final answer\\nFinal Answer: ..."
         ),
-        max_iterations=8,
+        max_iterations=12,
         return_intermediate_steps=True,
     )
 
@@ -166,8 +188,9 @@ def ask_agent(question: str) -> dict[str, Any]:
     result = executor.invoke(
         {
             "input": question,
-            "current_date": date.today().isoformat(),
-        }
+            "current_date": get_current_date().isoformat(),
+        },
+        config={"callbacks": [trace_handler]},
     )
     return {
         "answer": result["output"],

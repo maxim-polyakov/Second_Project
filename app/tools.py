@@ -9,7 +9,11 @@ import httpx
 
 
 DEFAULT_OBLIGATIONS_PATH = Path("data/obligations.json")
-FRANKFURTER_URL = "https://api.frankfurter.app/latest"
+FRANKFURTER_URL = "https://api.frankfurter.dev/v1/latest"
+FALLBACK_RATES_TO_RUB = {
+    "USD": 90.0,
+    "EUR": 98.0,
+}
 
 
 class CurrencyConversionError(RuntimeError):
@@ -78,6 +82,10 @@ def convert_currency(
         response.raise_for_status()
         payload = response.json()
     except httpx.HTTPError as exc:
+        fallback = _fallback_convert(amount, normalized_from, normalized_to)
+        if fallback is not None:
+            return fallback
+
         raise CurrencyConversionError(
             f"Could not fetch exchange rate {normalized_from}->{normalized_to}: {exc}"
         ) from exc
@@ -89,3 +97,14 @@ def convert_currency(
         )
 
     return round(float(converted), 2)
+
+
+def _fallback_convert(amount: float, from_currency: str, to_currency: str) -> float | None:
+    """Use explicit fallback rates only for RUB, which frankfurter may not provide."""
+    if to_currency == "RUB" and from_currency in FALLBACK_RATES_TO_RUB:
+        return round(float(amount) * FALLBACK_RATES_TO_RUB[from_currency], 2)
+
+    if from_currency == "RUB" and to_currency in FALLBACK_RATES_TO_RUB:
+        return round(float(amount) / FALLBACK_RATES_TO_RUB[to_currency], 2)
+
+    return None

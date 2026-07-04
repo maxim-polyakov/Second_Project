@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
 
+from app.settings import get_current_date
 from app.tools import get_obligations
 
 
@@ -17,7 +18,7 @@ DEMO_RATES_TO_RUB = {
 
 def ask_demo_agent(question: str, today: date | None = None) -> dict[str, Any]:
     """Deterministic demo agent used when the paid LLM API is unavailable."""
-    current_date = today or date.today()
+    current_date = today or get_current_date()
     normalized_question = question.lower()
     obligations = get_obligations(status="active")
     trace: list[dict[str, Any]] = [

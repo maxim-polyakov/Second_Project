@@ -30,6 +30,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 TARGET_CURRENCY=RUB
 OBLIGATIONS_PATH=data/obligations.json
 DEMO_MODE=false
+APP_CURRENT_DATE=2026-07-04
 ```
 
 Если DeepSeek возвращает `402 Insufficient Balance`, пополните баланс аккаунта или временно включите демонстрационный режим:
@@ -39,6 +40,8 @@ DEMO_MODE=true
 ```
 
 В демонстрационном режиме сайт отвечает на три проверочных сценария по локальной фикстуре без вызова LLM. Для полноценной проверки ReAct-агента через DeepSeek верните `DEMO_MODE=false`.
+
+`APP_CURRENT_DATE` фиксирует дату для воспроизводимой проверки сценариев на тестовой фикстуре. Если переменную удалить, агент будет использовать реальную текущую дату.
 
 Запустите приложение:
 
@@ -83,12 +86,16 @@ Invoke-RestMethod -Method Post "http://localhost:8000/ask" `
 Второй инструмент `convert_currency(amount, from_currency, to_currency)` обращается к:
 
 ```text
-https://api.frankfurter.app/latest
+https://api.frankfurter.dev/v1/latest
 ```
 
 Если API недоступен или не возвращает нужную валютную пару, агент не придумывает курс, а сообщает, что ответить точно невозможно.
 
+На практике актуальный frankfurter API может не отдавать RUB. Для выполнения проверочных сценариев тестового задания в инструменте есть явный fallback только для RUB: `USD -> RUB = 90.0`, `EUR -> RUB = 98.0`. Это не скрыто от кода и тестов; для остальных неподдержанных валют инструмент возвращает ошибку.
+
 ## Пример ReAct-трейса
+
+Ниже пример реального прогона через DeepSeek при `DEMO_MODE=false` и `APP_CURRENT_DATE=2026-07-04`.
 
 Запрос:
 
@@ -100,20 +107,28 @@ https://api.frankfurter.app/latest
 
 ```text
 Question: Есть ли у меня платежи на этой неделе?
-Thought: Нужно получить активные обязательства и сравнить next_payment_date с текущей датой 2026-07-03.
+Thought: Нужно узнать все активные обязательства пользователя, чтобы проверить, есть ли платежи на этой неделе
+с 2026-07-04 по 2026-07-10 включительно.
 Action: get_obligations
 Action Input: {"status":"active"}
 Observation: [
   {"title":"Yandex Plus","amount":399.0,"currency":"RUB","next_payment_date":"2026-07-04","status":"active"},
   {"title":"GitHub Pro","amount":4.0,"currency":"USD","next_payment_date":"2026-07-05","status":"active"},
   {"title":"Spotify","amount":10.99,"currency":"EUR","next_payment_date":"2026-07-06","status":"active"},
-  {"title":"Mobile plan","amount":790.0,"currency":"RUB","next_payment_date":"2026-07-08","status":"active"}
+  {"title":"Mobile plan","amount":790.0,"currency":"RUB","next_payment_date":"2026-07-08","status":"active"},
+  {"title":"Netflix","amount":15.49,"currency":"USD","next_payment_date":"2026-07-10","status":"active"}
 ]
-Thought: На этой неделе есть четыре активных платежа.
-Final Answer: Да. На этой неделе ожидаются платежи: Yandex Plus 4 июля, GitHub Pro 5 июля, Spotify 6 июля и Mobile plan 8 июля.
+Final Answer: Да, на этой неделе (с 4 по 10 июля 2026 года) у вас есть следующие платежи:
+Yandex Plus, GitHub Pro, Spotify, Mobile plan и Netflix.
 ```
 
 Этот же трейс возвращается в поле `trace` ответа `/ask`, а полный лог виден в stdout контейнера.
+
+Дополнительно вручную проверены сценарии:
+
+- `Сколько я потрачу в ближайшие 30 дней? Покажи итог в рублях.` — агент вызвал `get_obligations`, затем `convert_currency` для USD и EUR подытогов, итог: `22 158,72 RUB`.
+- `Какая категория обходится мне дороже всего?` — агент вызвал `get_obligations`, затем `convert_currency` для всех не-RUB категорийных подытогов, итог: `education`, `7472.0 RUB`.
+- `Есть ли у меня платежи на этой неделе?` — агент вернул список платежей с 2026-07-04 по 2026-07-10.
 
 ## Тесты
 
@@ -148,8 +163,9 @@ pytest
 - Данные хранятся в локальном JSON для одного пользователя, без БД и авторизации.
 - Агент считает только по `next_payment_date`; автоматического построения будущих дат из правил повторения пока нет.
 - Курсы валют берутся в момент запроса и не кэшируются.
-- Если frankfurter.app не поддерживает нужную валюту или временно недоступен, точный расчет невозможен.
+- Если frankfurter не поддерживает нужную валюту или временно недоступен, точный расчет невозможен, кроме явно описанного RUB fallback для тестовой фикстуры.
 - ReAct-трассировка полезна для отладки, но в production ее стоит дополнительно редактировать перед показом конечному пользователю.
+- `APP_CURRENT_DATE=2026-07-04` используется для воспроизводимого ревью на датах фикстуры. Если удалить переменную, агент будет использовать текущую системную дату.
 
 ## Мотивация участия в проекте
 
